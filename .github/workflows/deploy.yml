@@ -11,6 +11,7 @@ jobs:
 
     env:
       IMAGE_TAG: ${{ github.sha }}
+      APP_DIR: /home/ubuntu/mern-app
 
     steps:
       - name: Checkout code
@@ -39,22 +40,57 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy on EC2
+      - name: Deploy on EC2 (Fully Automated)
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
+          ssh -T ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
             set -e
-            cd /home/ubuntu/mern-app
+
+            echo "🚀 Starting automated deployment"
+
+            # 1️⃣ Install Docker if missing
+            if ! command -v docker >/dev/null; then
+              sudo apt update
+              sudo apt install -y docker.io docker-compose-plugin
+            fi
+
+            # 2️⃣ Ensure app directory exists
+            mkdir -p ${APP_DIR}
+            cd ${APP_DIR}
+
+            # 3️⃣ Create docker-compose.yml if missing
+            if [ ! -f docker-compose.yml ]; then
+              cat > docker-compose.yml << 'YAML'
+              version: "3.8"
+              services:
+                backend:
+                  image: sandeeptiwari0206/mern-backend:${IMAGE_TAG}
+                  restart: always
+                  ports:
+                    - "5000:5000"
+
+                frontend:
+                  image: sandeeptiwari0206/mern-frontend:${IMAGE_TAG}
+                  restart: always
+                  ports:
+                    - "80:80"
+                  depends_on:
+                    - backend
+              YAML
+            fi
 
             export IMAGE_TAG=${IMAGE_TAG}
 
             echo "🛑 Stopping containers"
-            docker compose down
+            docker compose down || true
 
             echo "📥 Pulling images with tag ${IMAGE_TAG}"
             docker compose pull
 
             echo "▶️ Starting containers"
             docker compose up -d
+
+            echo "🧹 Cleaning old images"
+            docker image prune -f
 
             echo "✅ Deployment completed"
           EOF
