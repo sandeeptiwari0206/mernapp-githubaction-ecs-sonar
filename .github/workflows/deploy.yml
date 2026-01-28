@@ -47,13 +47,18 @@ jobs:
 
             echo "🚀 Starting deployment"
 
-            # Ensure app directory exists and clone repo if missing
-            if [ ! -d "${APP_DIR}" ]; then
-              git clone https://github.com/sandeeptiwari0206/mernapp-githubaction-ecs-sonar.git ${APP_DIR}
-            fi
-
+            # Ensure app directory exists
+            mkdir -p ${APP_DIR}
             cd ${APP_DIR}
-            git pull origin main
+
+            # Clone repo if .git does not exist, else pull latest changes
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/sandeeptiwari0206/mernapp-githubaction-ecs-sonar.git .
+            else
+              git reset --hard
+              git clean -fd
+              git pull origin main
+            fi
 
             # Export image tag for docker-compose
             export IMAGE_TAG=${IMAGE_TAG}
