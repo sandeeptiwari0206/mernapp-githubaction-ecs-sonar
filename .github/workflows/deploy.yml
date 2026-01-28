@@ -40,50 +40,28 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy on EC2 (Fully Automated)
+      - name: Deploy on EC2
         run: |
           ssh -T ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
             set -e
 
-            echo "🚀 Starting automated deployment"
+            echo "🚀 Starting deployment"
 
-            # 1️⃣ Install Docker if missing
-            if ! command -v docker >/dev/null; then
-              sudo apt update
-              sudo apt install -y docker.io docker-compose-plugin
+            # Ensure app directory exists and clone repo if missing
+            if [ ! -d "${APP_DIR}" ]; then
+              git clone https://github.com/sandeeptiwari0206/mernapp-githubaction-ecs-sonar.git ${APP_DIR}
             fi
 
-            # 2️⃣ Ensure app directory exists
-            mkdir -p ${APP_DIR}
             cd ${APP_DIR}
+            git pull origin main
 
-            # 3️⃣ Create docker-compose.yml if missing
-            if [ ! -f docker-compose.yml ]; then
-              cat > docker-compose.yml << 'YAML'
-              version: "3.8"
-              services:
-                backend:
-                  image: sandeeptiwari0206/mern-backend:${IMAGE_TAG}
-                  restart: always
-                  ports:
-                    - "5000:5000"
-
-                frontend:
-                  image: sandeeptiwari0206/mern-frontend:${IMAGE_TAG}
-                  restart: always
-                  ports:
-                    - "80:80"
-                  depends_on:
-                    - backend
-              YAML
-            fi
-
+            # Export image tag for docker-compose
             export IMAGE_TAG=${IMAGE_TAG}
 
             echo "🛑 Stopping containers"
             docker compose down || true
 
-            echo "📥 Pulling images with tag ${IMAGE_TAG}"
+            echo "📥 Pull Docker images with tag ${IMAGE_TAG}"
             docker compose pull
 
             echo "▶️ Starting containers"
@@ -92,5 +70,5 @@ jobs:
             echo "🧹 Cleaning old images"
             docker image prune -f
 
-            echo "✅ Deployment completed"
+            echo "✅ Deployment completed successfully"
           EOF
