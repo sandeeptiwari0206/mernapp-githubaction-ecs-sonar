@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-scan-deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     env:
@@ -18,7 +18,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # ---------------- Node Setup ----------------
+    # ---------------- Node Setup (for Sonar) ----------------
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
@@ -29,7 +29,7 @@ jobs:
       run: rm -rf ~/.sonar/cache
 
     # ---------------- Backend Sonar Scan ----------------
-    - name: Install dependencies (Backend)
+    - name: Install Backend Dependencies
       run: |
         cd backend
         npm ci
@@ -44,7 +44,7 @@ jobs:
           -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
     # ---------------- Frontend Sonar Scan ----------------
-    - name: Install dependencies (Frontend)
+    - name: Install Frontend Dependencies
       run: |
         cd frontend
         npm ci
@@ -65,10 +65,10 @@ jobs:
         username: sandeeptiwari0206
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    # ---------------- Build & Push Images ----------------
+    # ---------------- Build & Push Images (UNCHANGED LOGIC) ----------------
     - name: Build & Push Backend Image
       run: |
-        docker build -t sandeeptiwari0206/mern-backend:${IMAGE_TAG} ./backend
+        docker build -t sandeeptiwari0206/mern-backend:${IMAGE_TAG} .
         docker push sandeeptiwari0206/mern-backend:${IMAGE_TAG}
 
     - name: Build & Push Frontend Image
@@ -88,6 +88,7 @@ jobs:
       run: |
         ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
           set -e
+
           echo "🚀 Starting deployment"
 
           mkdir -p ${APP_DIR}
@@ -103,11 +104,17 @@ jobs:
 
           export IMAGE_TAG=${IMAGE_TAG}
 
+          echo "🛑 Stopping containers"
           docker compose down || true
+
+          echo "📥 Pulling images"
           docker compose pull
+
+          echo "▶️ Starting containers"
           docker compose up -d
 
+          echo "🧹 Cleaning unused images"
           docker image prune -f
 
-          echo "✅ Deployment completed"
+          echo "✅ Deployment completed successfully"
         EOF
